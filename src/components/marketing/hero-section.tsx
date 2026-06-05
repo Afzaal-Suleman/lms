@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion, type Variants } from "framer-motion";
+import { motion, type Variants, type Transition } from "framer-motion";
 import {
   ArrowRight, Play, Star, Globe, Users, Award, BookOpen,
   CheckCircle, TrendingUp, Clock
@@ -26,13 +26,13 @@ const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.12, delayChildren: 0.2 },
+    transition: { staggerChildren: 0.12, delayChildren: 0.2 } as Transition,
   },
 };
 
 const itemVariants: Variants = {
   hidden: { opacity: 0, y: 30 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } as Transition },
 };
 
 export function HeroSection() {
