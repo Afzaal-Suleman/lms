@@ -1,0 +1,557 @@
+// This file configures the initialization of Sentry on the server.
+// The config you add here will be used whenever the server handles a request.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
+
+enum UserRole {
+  STUDENT
+  PARENT
+  TEACHER
+  ADMIN
+}
+
+enum ExamBoard {
+  CAMBRIDGE
+  EDEXCEL
+  AQA
+}
+
+enum Level {
+  O_LEVEL
+  AS_LEVEL
+  A_LEVEL
+  IGCSE
+}
+
+enum EnrollmentStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  SUSPENDED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentGateway {
+  STRIPE
+  MANUAL
+}
+
+enum AssignmentStatus {
+  PENDING
+  SUBMITTED
+  GRADED
+  LATE
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+  ANNOUNCEMENT
+}
+
+enum BlogCategory {
+  STUDY_TIPS
+  EXAM_PREPARATION
+  O_LEVEL_GUIDES
+  A_LEVEL_GUIDES
+  UNIVERSITY_ADMISSIONS
+  NEWS
+}
+
+// ─────────────────────────────────────────
+// AUTHENTICATION (NextAuth v5)
+// ─────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?   @db.Text
+  role          UserRole  @default(STUDENT)
+  phone         String?
+  country       String?
+  timezone      String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  student       Student?
+  parent        Parent?
+  teacher       Teacher?
+  notifications Notification[]
+  blogPosts     BlogPost[]
+
+  @@map("users")
+}
+
+model Student {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  parentId    String?
+  grade       String?
+  school      String?
+  timezone    String   @default("Asia/Karachi")
+  bio         String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent        Parent?        @relation(fields: [parentId], references: [id])
+  enrollments   Enrollment[]
+  submissions   Submission[]
+  quizResults   QuizResult[]
+  certificates  Certificate[]
+  testimonials  Testimonial[]
+  watchProgress WatchProgress[]
+  attendance    Attendance[]
+
+  @@map("students")
+}
+
+model Parent {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  students Student[]
+
+  @@map("parents")
+}
+
+model Teacher {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  bio            String?  @db.Text
+  qualifications String?  @db.Text
+  experience     Int      @default(0) // Years
+  rating         Float    @default(0)
+  reviewCount    Int      @default(0)
+  isVerified     Boolean  @default(false)
+  isFeatured     Boolean  @default(false)
+  badges         String[] // e.g. ["Ex-Cambridge Examiner", "Top Rated"]
+  photo          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courses Course[]
+
+  @@map("teachers")
+}
+
+// ─────────────────────────────────────────
+// COURSES & CONTENT
+// ─────────────────────────────────────────
+
+model Course {
+  id               String    @id @default(cuid())
+  slug             String    @unique
+  title            String
+  description      String?   @db.Text
+  shortDescription String?
+  syllabusCode     String?   // e.g. "9709"
+  examBoard        ExamBoard @default(CAMBRIDGE)
+  level            Level     @default(O_LEVEL)
+  teacherId        String
+  thumbnail        String?
+  previewVideoUrl  String?
+  feeUSD           Decimal   @default(0) @db.Decimal(10, 2)
+  feeGBP           Decimal   @default(0) @db.Decimal(10, 2)
+  feeAED           Decimal   @default(0) @db.Decimal(10, 2)
+  feePKR           Decimal   @default(0) @db.Decimal(10, 2)
+  schedule         String?   // e.g. "Mon/Wed/Fri 6PM PKT"
+  duration         String?   // e.g. "12 Weeks"
+  maxStudents      Int       @default(20)
+  isPublished      Boolean   @default(false)
+  isFeatured       Boolean   @default(false)
+  metaTitle        String?
+  metaDescription  String?
+  metaKeywords     String[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  teacher       Teacher        @relation(fields: [teacherId], references: [id])
+  modules       Module[]
+  enrollments   Enrollment[]
+  assignments   Assignment[]
+  quizzes       Quiz[]
+  testimonials  Testimonial[]
+  certificates  Certificate[]
+
+  @@map("courses")
+}
+
+model Module {
+  id          String   @id @default(cuid())
+  courseId    String
+  title       String
+  description String?
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@map("modules")
+}
+
+model Lesson {
+  id            String   @id @default(cuid())
+  moduleId      String
+  title         String
+  description   String?  @db.Text
+  videoUrl      String?  // Cloudflare Stream URL
+  videoId       String?  // Cloudflare Stream video ID
+  duration      Int?     // Seconds
+  order         Int
+  isFree        Boolean  @default(false)
+  pdfUrl        String?  // Notes PDF
+  resources     Json?    // Additional resources
+  publishedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  module        Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  watchProgress WatchProgress[]
+  attendance    Attendance[]
+
+  @@map("lessons")
+}
+
+// ─────────────────────────────────────────
+// ENROLLMENTS & PROGRESS
+// ─────────────────────────────────────────
+
+model Enrollment {
+  id          String           @id @default(cuid())
+  studentId   String
+  courseId    String
+  status      EnrollmentStatus @default(PENDING)
+  startDate   DateTime?
+  endDate     DateTime?
+  paidAt      DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  student  Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course   Course    @relation(fields: [courseId], references: [id])
+  payment  Payment?
+
+  @@unique([studentId, courseId])
+  @@map("enrollments")
+}
+
+model WatchProgress {
+  id             String   @id @default(cuid())
+  lessonId       String
+  studentId      String
+  secondsWatched Int      @default(0)
+  completed      Boolean  @default(false)
+  lastWatchedAt  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  lesson  Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, studentId])
+  @@map("watch_progress")
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  lessonId  String
+  studentId String
+  present   Boolean  @default(false)
+  joinedAt  DateTime?
+  leftAt    DateTime?
+  createdAt DateTime @default(now())
+
+  lesson  Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, studentId])
+  @@map("attendance")
+}
+
+// ─────────────────────────────────────────
+// ASSIGNMENTS & QUIZZES
+// ─────────────────────────────────────────
+
+model Assignment {
+  id          String   @id @default(cuid())
+  courseId    String
+  title       String
+  description String?  @db.Text
+  dueDate     DateTime?
+  fileUrl     String?  // Template/question file
+  maxScore    Int      @default(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@map("assignments")
+}
+
+model Submission {
+  id           String           @id @default(cuid())
+  assignmentId String
+  studentId    String
+  fileUrl      String?
+  notes        String?          @db.Text
+  status       AssignmentStatus @default(SUBMITTED)
+  grade        Int?
+  feedback     String?          @db.Text
+  submittedAt  DateTime         @default(now())
+  gradedAt     DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+  @@map("submissions")
+}
+
+model Quiz {
+  id          String   @id @default(cuid())
+  courseId    String
+  title       String
+  description String?
+  questions   Json     // Array of question objects
+  timeLimit   Int?     // Minutes
+  passMark    Int      @default(50)
+  attempts    Int      @default(1) // Max attempts
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course  Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  results QuizResult[]
+
+  @@map("quizzes")
+}
+
+model QuizResult {
+  id          String   @id @default(cuid())
+  quizId      String
+  studentId   String
+  score       Int
+  totalMarks  Int
+  answers     Json
+  passed      Boolean  @default(false)
+  attempt     Int      @default(1)
+  completedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  quiz    Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_results")
+}
+
+// ─────────────────────────────────────────
+// CERTIFICATES & PAYMENTS
+// ─────────────────────────────────────────
+
+model Certificate {
+  id         String   @id @default(cuid())
+  studentId  String
+  courseId   String
+  fileUrl    String?
+  issuedAt   DateTime @default(now())
+  verifyCode String   @unique @default(cuid())
+  createdAt  DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course  @relation(fields: [courseId], references: [id])
+
+  @@unique([studentId, courseId])
+  @@map("certificates")
+}
+
+model Payment {
+  id             String         @id @default(cuid())
+  enrollmentId   String         @unique
+  amount         Decimal        @db.Decimal(10, 2)
+  currency       String         @default("USD")
+  gateway        PaymentGateway @default(STRIPE)
+  status         PaymentStatus  @default(PENDING)
+  stripePaymentId String?
+  invoiceUrl     String?
+  couponCode     String?
+  discountAmount Decimal?       @db.Decimal(10, 2)
+  paidAt         DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Coupon {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  discountType   String   // "percentage" | "fixed"
+  discountValue  Decimal  @db.Decimal(10, 2)
+  maxUses        Int?
+  usedCount      Int      @default(0)
+  expiresAt      DateTime?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("coupons")
+}
+
+// ─────────────────────────────────────────
+// CONTENT & MARKETING
+// ─────────────────────────────────────────
+
+model Testimonial {
+  id          String   @id @default(cuid())
+  studentId   String
+  courseId    String?
+  content     String   @db.Text
+  rating      Int      @default(5)
+  videoUrl    String?
+  country     String?
+  grade       String?  // e.g. "A* in Mathematics"
+  approved    Boolean  @default(false)
+  isFeatured  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course? @relation(fields: [courseId], references: [id])
+
+  @@map("testimonials")
+}
+
+model BlogPost {
+  id              String       @id @default(cuid())
+  slug            String       @unique
+  title           String
+  excerpt         String?      @db.Text
+  content         String       @db.Text
+  category        BlogCategory @default(STUDY_TIPS)
+  thumbnail       String?
+  authorId        String
+  metaTitle       String?
+  metaDescription String?
+  metaKeywords    String[]
+  isPublished     Boolean      @default(false)
+  publishedAt     DateTime?
+  readTime        Int?         // Minutes
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  author User @relation(fields: [authorId], references: [id])
+
+  @@map("blog_posts")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  message   String           @db.Text
+  type      NotificationType @default(INFO)
+  read      Boolean          @default(false)
+  link      String?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
