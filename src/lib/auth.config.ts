@@ -43,7 +43,7 @@ export const authConfig = {
       return !!auth?.user;
     },
   },
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt" as const },
   pages: {
     signIn: "/auth/sign-in",
     newUser: "/auth/sign-up",
