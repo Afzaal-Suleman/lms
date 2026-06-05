@@ -9,7 +9,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   providers: [
-    ...authConfig.providers.filter(p => (typeof p === 'function' ? p.name : p.id) !== "credentials"),
+    ...authConfig.providers.filter((p: any) => (typeof p === 'function' ? p.name : p.id) !== "credentials"),
     Credentials({
       name: "Credentials",
       credentials: {
