@@ -27,19 +27,19 @@ export const authConfig = {
     }),
   ],
   callbacks: {
-    async session({ session, token }) {
+    async session({ session, token }: { session: any; token: any }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
       }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user }: { token: any; user: any }) {
       if (user) {
         token.sub = user.id;
       }
       return token;
     },
-    authorized({ auth }) {
+    authorized({ auth }: { auth: any }) {
       return !!auth?.user;
     },
   },
