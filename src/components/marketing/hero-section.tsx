@@ -232,11 +232,11 @@ export function HeroSection() {
                 className="absolute top-1/2 -translate-y-1/2 -right-10 glass p-3 rounded-2xl border border-white/15"
                 aria-hidden="true"
               >
-                <div className="flex items-center gap-2 text-sm text-white">
+                {/* <div className="flex items-center gap-2 text-sm text-white">
                   <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                   Live Now
                 </div>
-                <div className="text-xs text-white/50 mt-0.5">A Level Maths</div>
+                <div className="text-xs text-white/50 mt-0.5">A Level Maths</div> */}
               </motion.div>
             </div>
           </motion.div>

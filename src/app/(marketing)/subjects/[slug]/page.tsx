@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { generateCourseSchema, generateBreadcrumbSchema } from "@/lib/seo";
-import { CheckCircle, Clock, Users, Star, BookOpen, Video, FileText, Award } from "lucide-react";
+import { CheckCircle, Clock, Users, Star } from "lucide-react";
 
 const courses: Record<string, {
   name: string; code: string; board: string; level: string; teacher: string;
@@ -104,8 +104,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
                   ))}
                 </div>
                 <div className="space-y-2 mb-6 border-t border-white/10 pt-6">
-                  {[["Live Classes", Video], ["Recorded Lectures", Video], ["PDF Notes", FileText], ["Mock Exams", BookOpen], ["Certificate", Award]].map(([label, Icon]) => (
-                    <div key={label as string} className="flex items-center gap-2 text-sm text-white/70">
+                  {["Live Classes", "Recorded Lectures", "PDF Notes", "Mock Exams", "Certificate"].map((label) => (
+                    <div key={label} className="flex items-center gap-2 text-sm text-white/70">
                       <CheckCircle className="w-4 h-4 text-teal-400 shrink-0" aria-hidden="true" />
                       {label}
                     </div>
